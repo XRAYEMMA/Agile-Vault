@@ -291,7 +291,7 @@ app.use((error, _req, res, _next) => {
 
 // SPA fallback: serve index.html for non-API routes
 if (existsSync(distPath)) {
-  app.get('*', (_req, res) => {
+  app.get('/{*path}', (_req, res) => {
     res.sendFile(resolve(distPath, 'index.html'));
   });
 }
