@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: agile-vault
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TATUM_API_KEY
+        sync: false
+      - key: WALRUS_ENDPOINT
+        value: https://publisher.walrus-testnet.walrus.space
+      - key: WALRUS_EPOCHS
+        value: "1"
+      - key: SUI_NETWORK
+        value: testnet
+      - key: PORT
+        value: "10000"
+      - key: VITE_TATUM_SUI_RPC_URL
+        value: https://api.tatum.io/v3/blockchain/node/sui-testnet

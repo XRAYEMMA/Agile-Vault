@@ -3,7 +3,7 @@ import 'dotenv/config';
 import express from 'express';
 import Database from 'better-sqlite3';
 import multer from 'multer';
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { verifyPersonalMessageSignature } from '@mysten/sui/verify';
@@ -47,6 +47,12 @@ db.exec(`
 
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
+
+// Serve built frontend in production
+const distPath = resolve(__dirname, 'dist');
+if (existsSync(distPath)) {
+  app.use(express.static(distPath));
+}
 
 // Tatum Sui RPC helper
 const TATUM_SUI_RPC = process.env.VITE_TATUM_SUI_RPC_URL || 'https://api.tatum.io/v3/blockchain/node/sui-testnet';
@@ -283,6 +289,13 @@ app.use((error, _req, res, _next) => {
   res.status(error.status || 500).json({ error: error.message || 'Server error' });
 });
 
-app.listen(port, () => {
-  console.log(`Agile Vault API running on http://localhost:${port} (${suiNetwork})`);
+// SPA fallback: serve index.html for non-API routes
+if (existsSync(distPath)) {
+  app.get('*', (_req, res) => {
+    res.sendFile(resolve(distPath, 'index.html'));
+  });
+}
+
+app.listen(port, '0.0.0.0', () => {
+  console.log(`Agile Vault API running on port ${port} (${suiNetwork})`);
 });
