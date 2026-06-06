@@ -520,6 +520,27 @@ function App() {
     notify('Walrus blob ID copied', id);
   };
 
+  const downloadBlob = async (blobId, fileName) => {
+    try {
+      const url = `https://aggregator.walrus-testnet.walrus.space/v1/blobs/${blobId}`;
+      notify('Downloading from Walrus aggregator...', fileName);
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Aggregator returned HTTP ${response.status}`);
+      const blob = await response.blob();
+      const downloadUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = fileName || `blob-${blobId.slice(0, 8)}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(downloadUrl);
+      notify('Download complete', fileName);
+    } catch (err) {
+      notify('Download failed', err.message);
+    }
+  };
+
   return (
     <main>
       <nav className="navbar">
@@ -599,7 +620,7 @@ function App() {
 
           <section className="vault-section" id="vault">
             <div className="section-title"><div><p className="eyebrow">Upload History</p><h2>My Vault</h2></div><span>{stats.totalFiles} files • {fileSize(stats.totalStorage)}</span></div>
-            {uploads.length === 0 ? <div className="empty card"><Archive size={34} /><h3>Your vault is empty</h3><p>Upload your first file to store it on Walrus and persist ownership metadata.</p></div> : <div className="file-list">{uploads.map((file) => <article className="file-card" key={file.id}><div className="file-icon"><FileIcon type={getFileType(file.fileName, file.fileType)} /></div><div className="file-meta"><strong>{file.fileName}</strong><span>{fileSize(file.fileSize)} • {uploadDate(file.uploadTimestamp)}</span><span className="ownership-meta">Owner: {shortAddress(file.walletAddress)} • Verified by wallet signature</span><code>{file.blobId}</code></div><div className="file-actions"><a href={`https://walruscan.com/testnet/blob/${file.blobId}`} target="_blank" rel="noreferrer">View blob <ChevronRight size={15} /></a><button><Download size={15} /> Use aggregator</button><button onClick={() => copyId(file.blobId)}><Clipboard size={15} /> Copy ID</button></div></article>)}</div>}
+            {uploads.length === 0 ? <div className="empty card"><Archive size={34} /><h3>Your vault is empty</h3><p>Upload your first file to store it on Walrus and persist ownership metadata.</p></div> : <div className="file-list">{uploads.map((file) => <article className="file-card" key={file.id}><div className="file-icon"><FileIcon type={getFileType(file.fileName, file.fileType)} /></div><div className="file-meta"><strong>{file.fileName}</strong><span>{fileSize(file.fileSize)} • {uploadDate(file.uploadTimestamp)}</span><span className="ownership-meta">Owner: {shortAddress(file.walletAddress)} • Verified by wallet signature</span><code>{file.blobId}</code></div><div className="file-actions"><a href={`https://walruscan.com/testnet/blob/${file.blobId}`} target="_blank" rel="noreferrer">View blob <ChevronRight size={15} /></a><button onClick={() => downloadBlob(file.blobId, file.fileName)}><Download size={15} /> Download</button><button onClick={() => copyId(file.blobId)}><Clipboard size={15} /> Copy ID</button></div></article>)}</div>}
             <Footer />
           </section>
         </section>
