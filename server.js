@@ -1,9 +1,9 @@
 import cors from 'cors';
 import 'dotenv/config';
 import express from 'express';
-import Database from 'better-sqlite3';
+import pg from 'pg';
 import multer from 'multer';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { verifyPersonalMessageSignature } from '@mysten/sui/verify';
@@ -22,28 +22,28 @@ if (suiNetwork !== 'testnet') {
   throw new Error('Agile Vault is configured for TESTNET ONLY. Set SUI_NETWORK=testnet.');
 }
 
-const databaseUrl = process.env.DATABASE_URL?.trim();
-const dbPath = databaseUrl && !databaseUrl.startsWith('postgres')
-  ? databaseUrl.replace(/^sqlite:\/\//, '')
-  : resolve(__dirname, 'data/agile-vault.sqlite');
+// PostgreSQL database (Render free tier or local SQLite fallback)
+const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/agile-vault',
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false,
+});
 
-mkdirSync(dirname(dbPath), { recursive: true });
-const db = new Database(dbPath);
-db.pragma('journal_mode = WAL');
-db.exec(`
+// Initialize tables
+await pool.query(`
   CREATE TABLE IF NOT EXISTS uploads (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     wallet_address TEXT NOT NULL,
     file_name TEXT NOT NULL,
     file_size INTEGER NOT NULL,
     file_type TEXT NOT NULL,
     blob_id TEXT NOT NULL,
     blob_object_id TEXT,
-    upload_timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+    upload_timestamp TIMESTAMP NOT NULL DEFAULT NOW(),
     walrus_response TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_uploads_wallet ON uploads(wallet_address);
 `);
+console.log('[DB] PostgreSQL connected and tables ready');
 
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
@@ -185,8 +185,10 @@ async function storeOnWalrus(file, ownerAddress) {
   throw lastError;
 }
 
-app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, network: 'testnet', database: Boolean(dbPath), walrusEndpoint: Boolean(process.env.WALRUS_ENDPOINT), tatumRpc: Boolean(process.env.TATUM_API_KEY) });
+app.get('/api/health', async (_req, res) => {
+  let dbOk = false;
+  try { await pool.query('SELECT 1'); dbOk = true; } catch {}
+  res.json({ ok: true, network: 'testnet', database: dbOk, walrusEndpoint: Boolean(process.env.WALRUS_ENDPOINT), tatumRpc: Boolean(process.env.TATUM_API_KEY) });
 });
 
 // Wallet info endpoint powered by Tatum Sui RPC
@@ -233,28 +235,30 @@ app.post('/api/execute-tx', requireWalletSignature, async (req, res, next) => {
   }
 });
 
-app.get('/api/uploads', requireWalletSignature, (req, res) => {
-  const rows = db.prepare(`
-    SELECT * FROM uploads
-    WHERE wallet_address = ?
-    ORDER BY datetime(upload_timestamp) DESC, id DESC
-  `).all(req.walletAddress);
+app.get('/api/uploads', requireWalletSignature, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT * FROM uploads WHERE wallet_address = $1 ORDER BY upload_timestamp DESC, id DESC`,
+      [req.walletAddress]
+    );
 
-  const stats = db.prepare(`
-    SELECT COUNT(*) AS totalFiles, COALESCE(SUM(file_size), 0) AS totalStorage, MAX(upload_timestamp) AS latestUploadDate
-    FROM uploads
-    WHERE wallet_address = ?
-  `).get(req.walletAddress);
+    const { rows: [stats] } = await pool.query(
+      `SELECT COUNT(*) AS total_files, COALESCE(SUM(file_size), 0) AS total_storage, MAX(upload_timestamp) AS latest_upload_date FROM uploads WHERE wallet_address = $1`,
+      [req.walletAddress]
+    );
 
-  res.json({
-    walletAddress: req.walletAddress,
-    uploads: rows.map(rowToUpload),
-    stats: {
-      totalFiles: Number(stats.totalFiles || 0),
-      totalStorage: Number(stats.totalStorage || 0),
-      latestUploadDate: stats.latestUploadDate || null,
-    },
-  });
+    res.json({
+      walletAddress: req.walletAddress,
+      uploads: rows.map(rowToUpload),
+      stats: {
+        totalFiles: Number(stats.total_files || 0),
+        totalStorage: Number(stats.total_storage || 0),
+        latestUploadDate: stats.latest_upload_date || null,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.post('/api/uploads', requireWalletSignature, upload.single('file'), async (req, res, next) => {
@@ -264,20 +268,19 @@ app.post('/api/uploads', requireWalletSignature, upload.single('file'), async (r
     }
 
     const walrus = await storeOnWalrus(req.file, req.walletAddress);
-    const result = db.prepare(`
-      INSERT INTO uploads (wallet_address, file_name, file_size, file_type, blob_id, blob_object_id, walrus_response)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      req.walletAddress,
-      req.file.originalname,
-      req.file.size,
-      req.file.mimetype || 'application/octet-stream',
-      walrus.blobId,
-      walrus.blobObjectId,
-      JSON.stringify(walrus.walrusResponse),
+    const { rows: [row] } = await pool.query(
+      `INSERT INTO uploads (wallet_address, file_name, file_size, file_type, blob_id, blob_object_id, walrus_response) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [
+        req.walletAddress,
+        req.file.originalname,
+        req.file.size,
+        req.file.mimetype || 'application/octet-stream',
+        walrus.blobId,
+        walrus.blobObjectId,
+        JSON.stringify(walrus.walrusResponse),
+      ]
     );
 
-    const row = db.prepare('SELECT * FROM uploads WHERE id = ? AND wallet_address = ?').get(result.lastInsertRowid, req.walletAddress);
     res.status(201).json({ upload: rowToUpload(row) });
   } catch (error) {
     next(error);
