@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   Archive,
+  Award,
   BadgeCheck,
   Check,
   ChevronRight,
@@ -173,7 +174,8 @@ function App() {
   const [uploads, setUploads] = useState([]);
   const [stats, setStats] = useState({ totalFiles: 0, totalStorage: 0, latestUploadDate: null });
   const [walletBalance, setWalletBalance] = useState(null);
-  const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [batchProgress, setBatchProgress] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isSigning, setIsSigning] = useState(false);
@@ -398,121 +400,110 @@ function App() {
     setWalletAccount(null);
     setUploads([]);
     setStats({ totalFiles: 0, totalStorage: 0, latestUploadDate: null });
-    setSelectedFile(null);
+    setSelectedFiles([]);
+    setBatchProgress([]);
     setLastUpload(null);
     goToRoute('/');
     notify('Wallet disconnected', 'Session cleared. Reconnect and sign again to unlock the vault.');
   };
 
-  const chooseFile = (file) => {
-    if (!connected || !file) return;
-    setSelectedFile(file);
+  const chooseFiles = (files) => {
+    if (!connected || !files?.length) return;
+    setSelectedFiles(Array.from(files));
+    setBatchProgress([]);
     setLastUpload(null);
   };
 
-  const uploadFile = async () => {
+  const uploadFiles = async () => {
     if (!connected) return notify('Connect wallet first', 'Wallet signature is required before upload.');
-    if (!selectedFile) return notify('No file selected', 'Drop a file or click the upload area first.');
+    if (!selectedFiles.length) return notify('No files selected', 'Drop files or click the upload area first.');
     if (!activeWallet?.features?.['sui:signPersonalMessage']?.signPersonalMessage) {
       return notify('Wallet incompatible', 'Your wallet does not support message signing.');
     }
 
-    // Step 0: Check SUI balance — must have testnet SUI to upload
+    // Step 0: Check SUI balance
+    const totalFee = STORAGE_FEE_MIST * BigInt(selectedFiles.length);
     const currentBalance = walletBalance ? BigInt(walletBalance.totalBalance || '0') : 0n;
     if (currentBalance < MIN_BALANCE_MIST) {
-      return notify(
-        'Insufficient SUI balance',
-        `You need at least 0.005 SUI to upload. Your balance: ${formatSuiBalance(String(currentBalance))} SUI. Get testnet SUI from the faucet first.`
-      );
+      return notify('Insufficient SUI balance', `You need at least 0.005 SUI to upload. Your balance: ${formatSuiBalance(String(currentBalance))} SUI.`);
+    }
+    if (currentBalance < totalFee) {
+      return notify('Insufficient SUI', `Uploading ${selectedFiles.length} file(s) costs ${formatSuiBalance(String(totalFee))} SUI. Your balance: ${formatSuiBalance(String(currentBalance))} SUI.`);
     }
 
-    // Step 1: Sign upload authorization in wallet
-    setIsSigning(true);
-    try {
-      const uploadMessage = `Agile Vault Upload Authorization\nFile: ${selectedFile.name}\nSize: ${selectedFile.size} bytes\nFee: ${STORAGE_FEE_SUI} SUI\nOwner: ${session.address}\nTimestamp: ${new Date().toISOString()}\nNetwork: Sui testnet`;
-      notify('Sign in wallet', 'Approve the upload authorization in your wallet to proceed.');
-      await activeWallet.features['sui:signPersonalMessage'].signPersonalMessage({
-        message: new TextEncoder().encode(uploadMessage),
-        account: walletAccount,
-        chain: 'sui:testnet',
-      });
-    } catch (error) {
-      notify('Upload cancelled', error.message || 'You must sign the upload authorization in your wallet.');
-      setIsSigning(false);
-      return;
-    }
+    // Initialize progress tracking
+    const progress = selectedFiles.map((f) => ({ name: f.name, status: 'pending', blobId: null }));
+    setBatchProgress(progress);
 
-    // Step 2: Pay storage fee on-chain
-    notify('Pay storage fee', `Signing ${STORAGE_FEE_SUI} SUI storage fee transaction in your wallet.`);
-    try {
-      const tx = new Transaction();
-      const [coin] = tx.splitCoins(tx.gas, [tx.pure.u64(STORAGE_FEE_MIST)]);
-      tx.transferObjects([coin], tx.pure.address(VAULT_FEE_ADDRESS));
-      tx.setSender(session.address);
+    // Upload each file sequentially
+    let successCount = 0;
+    for (let i = 0; i < selectedFiles.length; i++) {
+      const file = selectedFiles[i];
+      setBatchProgress((p) => p.map((item, idx) => idx === i ? { ...item, status: 'signing' } : item));
 
-      const signAndExecFeature = activeWallet.features?.['sui:signAndExecuteTransaction'];
-      const signTxFn = activeWallet.features?.['sui:signTransaction'];
-
-      if (signAndExecFeature?.signAndExecuteTransaction) {
-        // Wallet handles signing + execution
-        await Promise.race([
-          signAndExecFeature.signAndExecuteTransaction({
-            transaction: tx,
-            chain: 'sui:testnet',
-            account: walletAccount,
-          }),
-          walletTimeout(`${activeWallet.name} transaction`),
-        ]);
-      } else if (signTxFn?.signTransaction) {
-        // Wallet only signs, we execute via backend
-        const signed = await Promise.race([
-          signTxFn.signTransaction({
-            transaction: tx,
-            chain: 'sui:testnet',
-            account: walletAccount,
-          }),
-          walletTimeout(`${activeWallet.name} transaction`),
-        ]);
-        // Execute via backend proxy
-        await apiRequest('/api/execute-tx', session, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ signature: signed.signature, bytes: signed.bytes }),
+      // Step 1: Sign upload authorization
+      try {
+        const uploadMessage = `Agile Vault Upload Authorization\nFile: ${file.name}\nSize: ${file.size} bytes\nFee: ${STORAGE_FEE_SUI} SUI\nOwner: ${session.address}\nTimestamp: ${new Date().toISOString()}\nNetwork: Sui testnet`;
+        await activeWallet.features['sui:signPersonalMessage'].signPersonalMessage({
+          message: new TextEncoder().encode(uploadMessage),
+          account: walletAccount,
+          chain: 'sui:testnet',
         });
-      } else {
-        throw new Error('Wallet does not support transaction signing.');
+      } catch (error) {
+        setBatchProgress((p) => p.map((item, idx) => idx === i ? { ...item, status: 'cancelled' } : item));
+        notify('Upload cancelled', `File "${file.name}" — ${error.message || 'signature rejected.'}`);
+        continue;
       }
-      console.log('[Agile] Storage fee paid:', STORAGE_FEE_SUI, 'SUI');
-    } catch (error) {
-      console.error('[Agile] Storage fee payment failed:', error);
-      notify('Payment failed', error.message || 'Storage fee transaction was not approved.');
-      setIsSigning(false);
-      return;
-    }
-    setIsSigning(false);
 
-    // Step 3: Upload to Walrus
-    setIsUploading(true);
-    notify('Uploading to Walrus...', 'Your file is being stored through the configured Walrus testnet endpoint.');
-    try {
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-      const data = await apiRequest('/api/uploads', session, { method: 'POST', body: formData });
-      setLastUpload(data.upload);
-      setSelectedFile(null);
+      // Step 2: Pay storage fee
+      setBatchProgress((p) => p.map((item, idx) => idx === i ? { ...item, status: 'paying' } : item));
+      try {
+        const tx = new Transaction();
+        const [coin] = tx.splitCoins(tx.gas, [tx.pure.u64(STORAGE_FEE_MIST)]);
+        tx.transferObjects([coin], tx.pure.address(VAULT_FEE_ADDRESS));
+        tx.setSender(session.address);
+        const signAndExecFeature = activeWallet.features?.['sui:signAndExecuteTransaction'];
+        const signTxFn = activeWallet.features?.['sui:signTransaction'];
+        if (signAndExecFeature?.signAndExecuteTransaction) {
+          await Promise.race([signAndExecFeature.signAndExecuteTransaction({ transaction: tx, chain: 'sui:testnet', account: walletAccount }), walletTimeout(`${activeWallet.name} tx`)]);
+        } else if (signTxFn?.signTransaction) {
+          const signed = await Promise.race([signTxFn.signTransaction({ transaction: tx, chain: 'sui:testnet', account: walletAccount }), walletTimeout(`${activeWallet.name} tx`)]);
+          await apiRequest('/api/execute-tx', session, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ signature: signed.signature, bytes: signed.bytes }) });
+        } else {
+          throw new Error('Wallet does not support transaction signing.');
+        }
+      } catch (error) {
+        setBatchProgress((p) => p.map((item, idx) => idx === i ? { ...item, status: 'failed' } : item));
+        notify('Payment failed', `File "${file.name}" — ${error.message}`);
+        continue;
+      }
+
+      // Step 3: Upload to Walrus
+      setBatchProgress((p) => p.map((item, idx) => idx === i ? { ...item, status: 'uploading' } : item));
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const data = await apiRequest('/api/uploads', session, { method: 'POST', body: formData });
+        setBatchProgress((p) => p.map((item, idx) => idx === i ? { ...item, status: 'done', blobId: data.upload.blobId } : item));
+        if (i === 0) setLastUpload(data.upload);
+        successCount++;
+      } catch (error) {
+        setBatchProgress((p) => p.map((item, idx) => idx === i ? { ...item, status: 'failed' } : item));
+        notify('Upload failed', `File "${file.name}" — ${error.message}`);
+      }
+    }
+
+    setSelectedFiles([]);
+    if (successCount > 0) {
       await refreshVault();
-      notify('File stored on Walrus', `Blob ID: ${data.upload.blobId} • Fee: ${STORAGE_FEE_SUI} SUI deducted`);
-    } catch (error) {
-      notify('Upload failed', error.message);
-    } finally {
-      setIsUploading(false);
+      notify('Batch complete', `${successCount}/${selectedFiles.length} file(s) stored on Walrus. ${formatSuiBalance(String(totalFee))} SUI deducted.`);
     }
   };
 
   const onDrop = (event) => {
     event.preventDefault();
     setIsDragging(false);
-    chooseFile(event.dataTransfer.files?.[0]);
+    chooseFiles(event.dataTransfer.files);
   };
 
   const copyId = async (id) => {
@@ -540,6 +531,60 @@ function App() {
       notify('Download failed', err.message);
     }
   };
+
+  const generateCertificate = (file) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 800;
+    canvas.height = 560;
+    const ctx = canvas.getContext('2d');
+    const grad = ctx.createLinearGradient(0, 0, 800, 560);
+    grad.addColorStop(0, '#FAF9F5');
+    grad.addColorStop(1, '#F0E8DA');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 800, 560);
+    ctx.strokeStyle = '#8B6F47';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(20, 20, 760, 520);
+    ctx.strokeStyle = '#D7CBB8';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(30, 30, 740, 500);
+    [[40, 40], [740, 40], [40, 510], [740, 510]].forEach(([x, y]) => { ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI * 2); ctx.fillStyle = '#8B6F47'; ctx.fill(); });
+    ctx.fillStyle = '#8B6F47';
+    ctx.font = 'bold 14px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('AGILE VAULT', 400, 75);
+    ctx.font = 'bold 32px Georgia, serif';
+    ctx.fillStyle = '#2B2B2B';
+    ctx.fillText('Certificate of Storage', 400, 115);
+    ctx.fillStyle = '#77716A';
+    ctx.font = '14px Inter, sans-serif';
+    ctx.fillText('On-Chain Verified \u2022 Walrus Testnet \u2022 Sui Blockchain', 400, 145);
+    ctx.beginPath(); ctx.moveTo(120, 170); ctx.lineTo(680, 170); ctx.strokeStyle = '#D7CBB8'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = '#2B2B2B';
+    ctx.font = '15px Inter, sans-serif';
+    ctx.fillText('This certifies that the following file has been permanently stored', 400, 205);
+    ctx.fillText('on Walrus decentralized storage via the Sui testnet blockchain.', 400, 225);
+    const details = [['File Name', file.fileName], ['File Size', fileSize(file.fileSize)], ['Blob ID', file.blobId.length > 50 ? file.blobId.slice(0, 24) + '...' + file.blobId.slice(-10) : file.blobId], ['Owner', shortAddress(file.walletAddress)], ['Timestamp', uploadDate(file.uploadTimestamp)], ['Network', 'Sui Testnet']];
+    let yPos = 270;
+    details.forEach(([label, value]) => {
+      ctx.textAlign = 'left'; ctx.fillStyle = '#77716A'; ctx.font = 'bold 12px Inter, sans-serif'; ctx.fillText(label.toUpperCase(), 100, yPos);
+      ctx.fillStyle = '#2B2B2B'; ctx.font = '14px Inter, sans-serif'; ctx.fillText(value, 280, yPos); yPos += 30;
+    });
+    ctx.beginPath(); ctx.moveTo(120, 470); ctx.lineTo(680, 470); ctx.strokeStyle = '#D7CBB8'; ctx.stroke();
+    ctx.textAlign = 'center'; ctx.fillStyle = '#8B6F47'; ctx.font = 'bold 11px Inter, sans-serif';
+    ctx.fillText('Powered by Tatum RPC \u2022 Stored on Walrus \u2022 Verified on Sui', 400, 500);
+    ctx.fillStyle = '#77716A'; ctx.font = '11px Inter, sans-serif';
+    ctx.fillText(`Certificate generated ${new Date().toLocaleDateString()}`, 400, 520);
+    const link = document.createElement('a');
+    link.download = `certificate-${file.blobId.slice(0, 8)}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    notify('Certificate downloaded', `${file.fileName} storage certificate saved as PNG.`);
+  };
+
+  const storageGB = stats.totalStorage / (1024 * 1024 * 1024);
+  const costs = { walrus: (storageGB * 0.00015 * 30).toFixed(6), aws: (storageGB * 0.023).toFixed(4), gcp: (storageGB * 0.020).toFixed(4), azure: (storageGB * 0.021).toFixed(4) };
+  const isBatchUploading = batchProgress.some((p) => ['signing', 'paying', 'uploading'].includes(p.status));
 
   return (
     <main>
@@ -601,26 +646,28 @@ function App() {
             <section className="card upload-card focus-card">
               <div className="card-heading"><div><p className="eyebrow">Walrus testnet upload</p><h2>Upload to Agile Vault</h2></div><Cloud className="muted-icon" size={26} /></div>
               <div className={`dropzone ${isDragging ? 'dragging' : ''}`} onClick={() => inputRef.current?.click()} onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }} onDragLeave={() => setIsDragging(false)} onDrop={onDrop}>
-                <input ref={inputRef} type="file" onChange={(e) => chooseFile(e.target.files?.[0])} />
+                <input ref={inputRef} type="file" multiple onChange={(e) => chooseFiles(e.target.files)} />
                 <div className="upload-orb"><Upload size={28} /></div>
-                <h3>{selectedFile ? selectedFile.name : 'Drop files here or click to upload'}</h3>
-                <p>{selectedFile ? `${fileSize(selectedFile.size)} • ${selectedFile.type || 'Any file type'}` : 'Supports PDFs, images, videos, documents, archives, and any other file type.'}</p>
+                <h3>{selectedFiles.length ? `${selectedFiles.length} file(s) selected` : 'Drop files here or click to upload'}</h3>
+                <p>{selectedFiles.length ? selectedFiles.map(f => f.name).join(', ') : 'Supports batch uploads — select multiple files at once.'}</p>
               </div>
-              <button className="primary wide" disabled={isUploading || isSigning || !selectedFile} onClick={uploadFile}>{isUploading || isSigning ? <Loader2 className="spin" size={18} /> : <Upload size={18} />}{isSigning ? 'Sign in wallet\u2026' : isUploading ? 'Uploading to Walrus\u2026' : 'Sign & Upload'}</button>
-                            {selectedFile && connected && <p style={{ textAlign: 'center', fontSize: 13, color: '#888', marginTop: 8 }}>Storage fee: {STORAGE_FEE_SUI} SUI will be deducted from your wallet</p>}
-                            {!walletBalance && connected && <p style={{ textAlign: 'center', fontSize: 13, color: '#c44', marginTop: 4 }}>No SUI balance detected \u2014 get testnet faucet tokens to upload</p>}
+              {batchProgress.length > 0 && <div className="batch-progress">{batchProgress.map((p, i) => <div key={i} className={`batch-item batch-${p.status}`}><span className="batch-name">{p.name}</span><span className="batch-status">{p.status === 'done' ? 'Stored' : p.status === 'pending' ? 'Waiting' : p.status === 'signing' ? 'Signing...' : p.status === 'paying' ? 'Paying fee...' : p.status === 'uploading' ? 'Uploading...' : p.status === 'cancelled' ? 'Cancelled' : 'Failed'}</span>{p.blobId && <code>{p.blobId.slice(0, 12)}...</code>}</div>)}</div>}
+              <button className="primary wide" disabled={isBatchUploading || !selectedFiles.length} onClick={uploadFiles}>{isBatchUploading ? <Loader2 className="spin" size={18} /> : <Upload size={18} />}{isBatchUploading ? 'Processing batch...' : selectedFiles.length > 1 ? `Upload ${selectedFiles.length} Files` : 'Sign & Upload'}</button>
+              {selectedFiles.length > 0 && connected && <p style={{ textAlign: 'center', fontSize: 13, color: '#888', marginTop: 8 }}>Storage fee: {(STORAGE_FEE_SUI * selectedFiles.length).toFixed(2)} SUI total ({STORAGE_FEE_SUI} SUI/file)</p>}
+              {!walletBalance && connected && <p style={{ textAlign: 'center', fontSize: 13, color: '#c44', marginTop: 4 }}>No SUI balance detected — get testnet faucet tokens to upload</p>}
               {lastUpload && <div className="result"><ShieldCheck size={18} /><div><strong>{lastUpload.fileName}</strong><span>{fileSize(lastUpload.fileSize)} • blob_id: {lastUpload.blobId}</span></div></div>}
             </section>
 
             <aside className="side-stack">
               <section className="card tatum-dashboard-card"><div className="verified-heading"><span className="verified-dot" /><p className="eyebrow">Tatum Identity</p></div><h3>Vault verified</h3><div className="info-row"><span>Wallet Address</span><strong>{walletLabel}</strong></div><div className="info-row"><span>Vault Status</span><strong className="ok">Signed</strong></div><div className="info-row"><span>SUI Balance</span><strong>{walletBalance ? `${formatSuiBalance(walletBalance.totalBalance)} SUI` : '—'}</strong></div><div className="info-row"><span>Files Owned</span><strong>{stats.totalFiles}</strong></div><div className="info-row"><span>RPC Provider</span><strong>Tatum</strong></div><div className="info-row"><span>Network</span><strong>Sui testnet</strong></div></section>
               <section className="card wallet-card"><p className="eyebrow">Ownership</p><h3>Identity → Storage</h3><div className="info-row"><span>Owner</span><strong>{walletLabel}</strong></div><div className="info-row"><span>Identity</span><strong>Tatum / Sui wallet</strong></div><div className="info-row"><span>Storage</span><strong>Walrus testnet</strong></div><div className="info-row"><span>Total Storage</span><strong>{fileSize(stats.totalStorage)}</strong></div></section>
+              {stats.totalFiles > 0 && <section className="card cost-card"><p className="eyebrow"><Database size={14} /> Storage Cost Comparison</p><h3>Walrus vs Cloud</h3><p className="cost-subtitle">Monthly cost for {fileSize(stats.totalStorage)} stored</p><div className="cost-bars"><div className="cost-bar-row"><span className="cost-label">Walrus</span><div className="cost-bar"><div className="cost-bar-fill walrus" style={{ width: `${Math.max(2, (parseFloat(costs.walrus) / Math.max(parseFloat(costs.aws), 0.001)) * 100)}%` }} /></div><strong className="ok">${costs.walrus}</strong></div><div className="cost-bar-row"><span className="cost-label">AWS S3</span><div className="cost-bar"><div className="cost-bar-fill aws" style={{ width: '100%' }} /></div><strong>${costs.aws}</strong></div><div className="cost-bar-row"><span className="cost-label">Google</span><div className="cost-bar"><div className="cost-bar-fill gcp" style={{ width: `${(parseFloat(costs.gcp) / Math.max(parseFloat(costs.aws), 0.001)) * 100}%` }} /></div><strong>${costs.gcp}</strong></div><div className="cost-bar-row"><span className="cost-label">Azure</span><div className="cost-bar"><div className="cost-bar-fill azure" style={{ width: `${(parseFloat(costs.azure) / Math.max(parseFloat(costs.aws), 0.001)) * 100}%` }} /></div><strong>${costs.azure}</strong></div></div><p className="cost-savings">You save ~{((1 - parseFloat(costs.walrus) / Math.max(parseFloat(costs.aws), 0.0001)) * 100).toFixed(1)}% vs traditional cloud</p></section>}
             </aside>
           </div>
 
           <section className="vault-section" id="vault">
             <div className="section-title"><div><p className="eyebrow">Upload History</p><h2>My Vault</h2></div><span>{stats.totalFiles} files • {fileSize(stats.totalStorage)}</span></div>
-            {uploads.length === 0 ? <div className="empty card"><Archive size={34} /><h3>Your vault is empty</h3><p>Upload your first file to store it on Walrus and persist ownership metadata.</p></div> : <div className="file-list">{uploads.map((file) => <article className="file-card" key={file.id}><div className="file-icon"><FileIcon type={getFileType(file.fileName, file.fileType)} /></div><div className="file-meta"><strong>{file.fileName}</strong><span>{fileSize(file.fileSize)} • {uploadDate(file.uploadTimestamp)}</span><span className="ownership-meta">Owner: {shortAddress(file.walletAddress)} • Verified by wallet signature</span><code>{file.blobId}</code></div><div className="file-actions"><a href={`https://walruscan.com/testnet/blob/${file.blobId}`} target="_blank" rel="noreferrer">View blob <ChevronRight size={15} /></a><button onClick={() => downloadBlob(file.blobId, file.fileName)}><Download size={15} /> Download</button><button onClick={() => copyId(file.blobId)}><Clipboard size={15} /> Copy ID</button></div></article>)}</div>}
+            {uploads.length === 0 ? <div className="empty card"><Archive size={34} /><h3>Your vault is empty</h3><p>Upload your first file to store it on Walrus and persist ownership metadata.</p></div> : <div className="file-list">{uploads.map((file) => <article className="file-card" key={file.id}><div className="file-icon"><FileIcon type={getFileType(file.fileName, file.fileType)} /></div><div className="file-meta"><strong>{file.fileName}</strong><span>{fileSize(file.fileSize)} • {uploadDate(file.uploadTimestamp)}</span><span className="ownership-meta">Owner: {shortAddress(file.walletAddress)} • Verified by wallet signature</span><code>{file.blobId}</code></div><div className="file-actions"><a href={`https://walruscan.com/testnet/blob/${file.blobId}`} target="_blank" rel="noreferrer">View blob <ChevronRight size={15} /></a><button onClick={() => downloadBlob(file.blobId, file.fileName)}><Download size={15} /> Download</button><button onClick={() => generateCertificate(file)}><Award size={15} /> Certificate</button><button onClick={() => copyId(file.blobId)}><Clipboard size={15} /> Copy ID</button></div></article>)}</div>}
             <Footer />
           </section>
         </section>

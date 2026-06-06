@@ -205,6 +205,33 @@ main { min-height: 100vh; }
 .info-row strong { text-align: right; }
 .ok { color: var(--green); } .warn { color: #A4663D; }
 .vault-section { margin-top: 34px; }
+
+/* Batch upload progress */
+.batch-progress { display: grid; gap: 6px; margin: 12px 0; padding: 14px; border-radius: 16px; background: #FBF9F4; border: 1px solid var(--line); }
+.batch-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; background: white; border: 1px solid var(--line); font-size: 13px; }
+.batch-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.batch-status { font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 999px; }
+.batch-item code { font-size: 11px; color: var(--primary); }
+.batch-pending .batch-status { color: var(--muted); background: var(--soft); }
+.batch-signing .batch-status, .batch-paying .batch-status, .batch-uploading .batch-status { color: var(--primary); background: #F0E8DA; }
+.batch-done .batch-status { color: var(--green); background: #EEF6EC; }
+.batch-failed .batch-status, .batch-cancelled .batch-status { color: #A4663D; background: #FDF0E8; }
+
+/* Cost comparison */
+.cost-card { padding: 24px; }
+.cost-card h3 { margin: 10px 0 4px; font-size: 24px; letter-spacing: -0.04em; }
+.cost-subtitle { color: var(--muted); font-size: 13px; margin: 0 0 16px; }
+.cost-bars { display: grid; gap: 10px; }
+.cost-bar-row { display: grid; grid-template-columns: 56px 1fr 70px; align-items: center; gap: 8px; }
+.cost-label { font-size: 12px; font-weight: 700; color: var(--muted); }
+.cost-bar { height: 18px; border-radius: 9px; background: var(--soft); overflow: hidden; }
+.cost-bar-fill { height: 100%; border-radius: 9px; transition: width .4s ease; }
+.cost-bar-fill.walrus { background: var(--green); }
+.cost-bar-fill.aws { background: #FF9900; }
+.cost-bar-fill.gcp { background: #4285F4; }
+.cost-bar-fill.azure { background: #0078D4; }
+.cost-bar-row strong { text-align: right; font-size: 13px; }
+.cost-savings { margin: 14px 0 0; padding: 10px 12px; border-radius: 12px; background: #F2F7F0; color: var(--green); font-size: 13px; font-weight: 700; text-align: center; }
 .section-title { justify-content: space-between; margin-bottom: 16px; }
 .section-title.stacked { align-items: flex-start; flex-direction: column; }
 .section-title h2 { margin: 6px 0 0; font-size: 44px; letter-spacing: -0.05em; line-height: .95; }
