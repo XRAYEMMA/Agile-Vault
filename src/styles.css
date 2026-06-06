@@ -278,15 +278,33 @@ main { min-height: 100vh; }
   .side-stack { position: static; }
   .wallet-card { position: static; }
   .feature-grid, .steps, .identity-grid, .trust-grid { grid-template-columns: 1fr; }
-  .file-card { grid-template-columns: auto 1fr; }
-  .file-actions { grid-column: 1 / -1; justify-content: flex-start; }
+  .file-card { grid-template-columns: auto minmax(0, 1fr); gap: 12px; padding: 14px; }
+  .file-actions { grid-column: 1 / -1; justify-content: flex-start; gap: 6px; }
+  .file-actions button, .file-actions a { padding: 7px 10px; font-size: 12px; }
+  .file-icon { width: 40px; height: 40px; }
 }
 @media (max-width: 640px) {
   .navbar { align-items: flex-start; gap: 14px; grid-template-columns: 1fr; }
   .nav-actions { width: 100%; justify-content: space-between; }
   .gate { padding-top: 42px; }
-  .gate-copy h1 { font-size: 52px; }
   .gate-card, .upload-card, .identity-panel .section-title, .tatum-badge { padding: 20px; }
   .footer { flex-direction: column; }
   .wallet-menu { right: auto; left: 0; }
+  .file-card { padding: 12px; gap: 10px; }
+  .file-icon { width: 36px; height: 36px; border-radius: 12px; }
+  .file-meta strong { font-size: 14px; max-width: 100%; }
+  .file-meta span, .file-meta code { font-size: 11px; }
+  .file-meta .ownership-meta { font-size: 11px; }
+  .file-actions { flex-wrap: wrap; gap: 5px; }
+  .file-actions button, .file-actions a { padding: 6px 8px; font-size: 11px; gap: 4px; }
+  .section-title h2 { font-size: 30px; }
+  .section-title > span { font-size: 13px; }
+  .upload-card { padding: 18px; }
+  .dropzone { min-height: 180px; padding: 20px; }
+  .dropzone h3 { font-size: 18px; }
+  .dashboard { padding: 30px 14px 60px; }
+  .stat-strip div { min-width: 0; flex: 1; padding: 12px; }
+  .stat-strip strong { font-size: 16px; }
+  .card-heading h2 { font-size: 26px; }
+  .gate-copy h1 { font-size: 42px; }
 }
