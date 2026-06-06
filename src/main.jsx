@@ -623,14 +623,14 @@ function App() {
         <div className="public-shell fade-in">
           <section className="gate">
             <div className="gate-copy">
-              <p className="eyebrow"><Sparkles size={14} /> Testnet Tatum identity + Walrus storage</p>
-              <h1>Your wallet is the key. Walrus is the vault.</h1>
-              <p>Agile Vault turns your Sui wallet into a private command center for decentralized files: unlock your vault, send data to Walrus, and keep a wallet-owned trail of every blob you store.</p>
+              <p className="eyebrow"><Sparkles size={14} /> Tatum RPC × Walrus Decentralized Storage</p>
+              <h1>Store on Walrus. Verify with Tatum. Own with Sui.</h1>
+              <p>A decentralized file vault where your wallet is your identity and every upload is permanent, verifiable, and yours. Powered by Tatum's Sui RPC gateway for on-chain fee transactions and Walrus testnet for certified blob storage.</p>
               <div className="hero-actions">
                 {!walletAccount ? <div className="wallet-menu-wrap"><button className="primary" onClick={() => setWalletMenuOpen((open) => !open)} disabled={isConnecting}>{isConnecting ? <Loader2 className="spin" size={18} /> : <Wallet size={18} />} {isConnecting ? 'Connecting…' : 'Enter Vault'}</button>{walletMenuOpen && <WalletMenu wallets={wallets} installedWallets={installedWallets} onSelect={selectWallet} onSelectInstalled={selectInstalledWallet} />}</div> : <button className="primary" onClick={signAndEnter} disabled={isSigning}>{isSigning ? <Loader2 className="spin" size={18} /> : <Wallet size={18} />} Sign to Enter Vault</button>}
                 <a href="#features">Explore features</a>
               </div>
-              <div className="trust-row"><span>Sui testnet only</span><span>Wallet signature required</span><span>Real Walrus blob IDs</span></div>
+              <div className="trust-row"><span>Tatum-verified identity</span><span>On-chain storage fees</span><span>Certified Walrus blobs</span></div>
             </div>
             <div className="gate-card">
               <div className="gate-card-top"><div className="gate-icon"><Lock size={24} /></div><span>Locked dashboard</span></div>
