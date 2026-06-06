@@ -183,6 +183,7 @@ function App() {
   const [isWalletConnecting, setIsWalletConnecting] = useState(false);
   const [lastUpload, setLastUpload] = useState(null);
   const [toast, setToast] = useState(null);
+  const [visibleCount, setVisibleCount] = useState(10);
   const inputRef = useRef(null);
 
   const connected = Boolean(session?.address);
@@ -202,6 +203,7 @@ function App() {
     setSession(null);
     setUploads([]);
     setStats({ totalFiles: 0, totalStorage: 0, latestUploadDate: null });
+    setVisibleCount(10);
     setWalletBalance(null);
   }, [walletAccount?.address]);
 
@@ -380,6 +382,7 @@ function App() {
       });
       const nextSession = { address: walletAccount.address.toLowerCase(), message, signature: signed.signature };
       setSession(nextSession);
+      setVisibleCount(10);
       await refreshVault(nextSession);
       goToRoute('/dashboard');
       notify('Wallet verified', 'Signature accepted. Your testnet vault is unlocked.');
@@ -588,6 +591,10 @@ function App() {
   const yearlyActual = { walrus: storageGB * yearlyGB.walrus, aws: storageGB * yearlyGB.aws, gcp: storageGB * yearlyGB.gcp, azure: storageGB * yearlyGB.azure };
   const maxYearly = Math.max(yearlyActual.aws, yearlyActual.gcp, yearlyActual.azure, 0.001);
   const formatCost = (v) => v < 0.001 ? `$${v.toFixed(6)}` : v < 1 ? `$${v.toFixed(4)}` : `$${v.toFixed(2)}`;
+  const PAGE_SIZE = 10;
+  const visibleUploads = uploads.slice(0, visibleCount);
+  const hasMore = uploads.length > visibleCount;
+  const remaining = uploads.length - visibleCount;
   const isBatchUploading = batchProgress.some((p) => ['signing', 'paying', 'uploading'].includes(p.status));
 
   return (
@@ -671,7 +678,7 @@ function App() {
 
           <section className="vault-section" id="vault">
             <div className="section-title"><div><p className="eyebrow">Upload History</p><h2>My Vault</h2></div><span>{stats.totalFiles} files • {fileSize(stats.totalStorage)}</span></div>
-            {uploads.length === 0 ? <div className="empty card"><Archive size={34} /><h3>Your vault is empty</h3><p>Upload your first file to store it on Walrus and persist ownership metadata.</p></div> : <div className="file-list">{uploads.map((file) => <article className="file-card" key={file.id}><div className="file-icon"><FileIcon type={getFileType(file.fileName, file.fileType)} /></div><div className="file-meta"><strong>{file.fileName}</strong><span>{fileSize(file.fileSize)} • {uploadDate(file.uploadTimestamp)}</span><span className="ownership-meta">Owner: {shortAddress(file.walletAddress)} • Verified by wallet signature</span><code>{file.blobId}</code></div><div className="file-actions"><a href={`https://walruscan.com/testnet/blob/${file.blobId}`} target="_blank" rel="noreferrer">View blob <ChevronRight size={15} /></a><button onClick={() => downloadBlob(file.blobId, file.fileName)}><Download size={15} /> Download</button><button onClick={() => generateCertificate(file)}><Award size={15} /> Certificate</button><button onClick={() => copyId(file.blobId)}><Clipboard size={15} /> Copy ID</button></div></article>)}</div>}
+            {uploads.length === 0 ? <div className="empty card"><Archive size={34} /><h3>Your vault is empty</h3><p>Upload your first file to store it on Walrus and persist ownership metadata.</p></div> : <><div className="file-list">{visibleUploads.map((file) => <article className="file-card" key={file.id}><div className="file-icon"><FileIcon type={getFileType(file.fileName, file.fileType)} /></div><div className="file-meta"><strong>{file.fileName}</strong><span>{fileSize(file.fileSize)} • {uploadDate(file.uploadTimestamp)}</span><span className="ownership-meta">Owner: {shortAddress(file.walletAddress)} • Verified by wallet signature</span><code>{file.blobId}</code></div><div className="file-actions"><a href={`https://walruscan.com/testnet/blob/${file.blobId}`} target="_blank" rel="noreferrer">View blob <ChevronRight size={15} /></a><button onClick={() => downloadBlob(file.blobId, file.fileName)}><Download size={15} /> Download</button><button onClick={() => generateCertificate(file)}><Award size={15} /> Certificate</button><button onClick={() => copyId(file.blobId)}><Clipboard size={15} /> Copy ID</button></div></article>)}</div>{hasMore && <div className="load-more-wrap"><button className="ghost load-more" onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}>Load More ({remaining} remaining)</button></div>}</>}
             <Footer />
           </section>
         </section>

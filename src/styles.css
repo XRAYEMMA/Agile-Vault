@@ -243,6 +243,8 @@ main { min-height: 100vh; }
 .section-title h2 { margin: 6px 0 0; font-size: 44px; letter-spacing: -0.05em; line-height: .95; }
 .section-title > span { color: var(--muted); }
 .file-list { display: grid; gap: 14px; }
+.load-more-wrap { display: flex; justify-content: center; margin-top: 20px; }
+button.load-more { font-size: 14px; font-weight: 700; padding: 12px 28px; border-radius: 12px; }
 .file-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 16px; align-items: center; padding: 18px; border: 1px solid rgba(233, 227, 216, .92); border-radius: 20px; background: rgba(255,255,255,.88); transition: transform .22s ease, box-shadow .22s ease; }
 .file-card:hover, .mini-card:hover { transform: translateY(-2px); box-shadow: 0 18px 44px rgba(68, 52, 31, .1); }
 .file-icon { width: 48px; height: 48px; }
