@@ -15,9 +15,37 @@ Built for the Tatum × Walrus Hackathon — Agile Vault lets users store files o
 1. **Connect Wallet** — User connects a Sui-compatible wallet (OKX, Phantom, Sui Wallet, Slush, etc.)
 2. **Sign Auth** — Wallet signs a message to prove identity (verified server-side via `@mysten/sui`)
 3. **Check Balance** — Tatum RPC queries the user's SUI balance (must have testnet faucet tokens)
-4. **Pay Storage Fee** — 0.01 SUI is deducted per upload via an on-chain transaction (signed in wallet, executed via Tatum RPC)
-5. **Upload to Walrus** — File is published to Walrus testnet, receiving a certified blob ID on-chain
+4. **Pay Storage Fee** — 0.01 SUI is deducted per file via an on-chain transaction (signed in wallet, executed via Tatum RPC)
+5. **Upload to Walrus** — Files are published to Walrus testnet, receiving certified blob IDs on-chain
 6. **Download** — Files can be retrieved anytime from the Walrus aggregator using the blob ID
+
+## Key Features
+
+### Batch Upload with Progress Tracking
+Upload multiple files at once — drag and drop or select several files. Each file shows real-time progress through the full pipeline: wallet signing → storage fee payment → Walrus upload → certified on-chain. The total SUI fee is calculated and displayed upfront.
+
+### Storage Cost Comparison Dashboard
+A live cost comparison card appears in the dashboard once files are uploaded. It shows a visual bar chart comparing the cost of storing your data on:
+- **Walrus** (decentralized) vs **AWS S3**, **Google Cloud Storage**, and **Azure Blob Storage**
+
+The dashboard calculates the percentage savings of using Walrus over traditional cloud providers, making the value of decentralized storage immediately visible.
+
+### On-Chain Storage Certificates
+Every uploaded file can generate a downloadable **Certificate of Storage** — a beautifully designed PNG certificate containing:
+- File name and size
+- Walrus blob ID
+- Owner wallet address
+- Timestamp and network (Sui Testnet)
+- Verification details (Tatum RPC + Walrus + Sui blockchain)
+
+Certificates serve as shareable proof of on-chain storage, perfect for hackathon demos and real-world verification.
+
+### Additional Features
+- **Universal wallet detection** — OKX, Phantom, Sui Wallet, Slush, MetaMask, Trust, Coinbase, Backpack
+- **SUI fee enforcement** — Uploads blocked if wallet has insufficient testnet SUI
+- **Walrus aggregator download** — Retrieve files directly from decentralized storage
+- **Mobile-responsive UI** — Full functionality on phones and tablets
+- **Persistent history** — Upload data stored in PostgreSQL, survives restarts
 
 ## Tatum Integration
 
