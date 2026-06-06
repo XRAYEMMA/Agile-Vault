@@ -55,7 +55,7 @@ if (existsSync(distPath)) {
 }
 
 // Tatum Sui RPC helper
-const TATUM_SUI_RPC = process.env.VITE_TATUM_SUI_RPC_URL || 'https://api.tatum.io/v3/blockchain/node/sui-testnet';
+const TATUM_SUI_RPC = process.env.VITE_TATUM_SUI_RPC_URL || 'https://sui-testnet.gateway.tatum.io';
 
 async function tatumSuiRpc(method, params = []) {
   const response = await fetch(TATUM_SUI_RPC, {
