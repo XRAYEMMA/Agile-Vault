@@ -232,6 +232,12 @@ main { min-height: 100vh; }
 .cost-bar-fill.azure { background: #0078D4; }
 .cost-bar-row strong { text-align: right; font-size: 13px; }
 .cost-savings { margin: 14px 0 0; padding: 10px 12px; border-radius: 12px; background: #F2F7F0; color: var(--green); font-size: 13px; font-weight: 700; text-align: center; }
+.cost-yearly { margin-top: 16px; padding: 12px; border-radius: 14px; background: var(--soft); border: 1px solid var(--line); }
+.cost-yearly-title { margin: 0 0 10px; font-size: 12px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+.cost-yearly-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cost-yearly-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; border-radius: 8px; background: white; border: 1px solid var(--line); }
+.cost-yearly-item span { font-size: 12px; color: var(--muted); font-weight: 600; }
+.cost-yearly-item strong { font-size: 13px; }
 .section-title { justify-content: space-between; margin-bottom: 16px; }
 .section-title.stacked { align-items: flex-start; flex-direction: column; }
 .section-title h2 { margin: 6px 0 0; font-size: 44px; letter-spacing: -0.05em; line-height: .95; }
