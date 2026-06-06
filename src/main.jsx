@@ -634,9 +634,9 @@ function App() {
             </div>
             <div className="gate-card">
               <div className="gate-card-top"><div className="gate-icon"><Lock size={24} /></div><span>Locked dashboard</span></div>
-              <h2>Connect your wallet. Sign ownership. Open the vault.</h2>
-              <p>Sessions are not auto-restored. Refreshing the page requires a fresh wallet signature.</p>
-              <div className="locked-upload"><div className="upload-orb"><Upload size={24} /></div><strong>Vault is sealed</strong><span>No uploads or history are available until the wallet signs.</span></div>
+              <h2>Connect a Sui wallet to unlock your vault.</h2>
+              <p>Every session requires a fresh signature. No accounts, no cookies — your wallet is the only key.</p>
+              <div className="locked-upload"><div className="upload-orb"><Upload size={24} /></div><strong>Vault is sealed</strong><span>No uploads, history, or certificates available until the wallet signs.</span></div>
             </div>
           </section>
 
@@ -649,7 +649,7 @@ function App() {
       ) : (
         <section className="dashboard fade-in">
           <div className="dashboard-top">
-            <div className="hero-copy"><p className="eyebrow"><Sparkles size={14} /> Dashboard unlocked</p><h2>Upload files. Wallet ownership is verified.</h2><p>Every upload is linked to {walletLabel}, stored on Walrus testnet, and persisted in the backend database.</p></div>
+            <div className="hero-copy"><p className="eyebrow"><Sparkles size={14} /> Vault unlocked</p><h2>Your files live on Walrus. Your identity is verified by Tatum.</h2><p>Wallet: {walletLabel} • Every upload is an on-chain transaction with a certified blob ID on Sui testnet.</p></div>
             <div className="stat-strip"><div><strong>{stats.totalFiles}</strong><span>Files uploaded</span></div><div><strong>{fileSize(stats.totalStorage)}</strong><span>Total storage</span></div><div><strong>{uploadDate(stats.latestUploadDate)}</strong><span>Latest upload</span></div></div>
           </div>
 
@@ -715,34 +715,34 @@ function WalletMenu({ wallets, installedWallets, onSelect, onSelectInstalled }) 
 
 function TatumIdentitySection() {
   const identityCards = [
-    { icon: <Fingerprint size={22} />, title: 'Real Wallet Identity', copy: 'Users connect an installed Sui testnet wallet and sign a message to prove ownership.' },
-    { icon: <BadgeCheck size={22} />, title: 'Ownership Verification', copy: 'The backend verifies the signature before returning private wallet-scoped history.' },
-    { icon: <KeyRound size={22} />, title: 'No Auto Reconnect', copy: 'Refreshing clears the active UI session; users must reconnect and sign again.' },
+    { icon: <Fingerprint size={22} />, title: 'Wallet-as-Identity', copy: 'No email, no password, no account. Your Sui wallet address is your identity — verified through a cryptographic signature, not a login form.' },
+    { icon: <BadgeCheck size={22} />, title: 'Server-Side Verification', copy: 'Every session is verified server-side using Tatum Sui RPC. The backend confirms your signature before granting access to your private vault history.' },
+    { icon: <KeyRound size={22} />, title: 'Zero-Knowledge Sessions', copy: 'Sessions are ephemeral — refresh the page and you must re-sign. No cookies, no tokens, no tracking. Your wallet proves you every time.' },
   ];
-  return <section className="identity-section" id="identity"><div className="identity-panel"><div className="section-title stacked"><p className="eyebrow"><ShieldCheck size={14} /> Why Tatum</p><h2>Powered by Tatum Identity</h2><p>Tatum provides testnet blockchain infrastructure while wallet signatures establish the user identity.</p></div><div className="tatum-badge" aria-label="Tatum logo"><div className="tatum-logo-shell"><img src={tatumLogo} alt="Tatum" /></div><strong>Tatum</strong><small>identity layer</small></div></div><div className="identity-grid">{identityCards.map((card) => <article className="identity-card" key={card.title}><div className="identity-icon">{card.icon}</div><h3>{card.title}</h3><p>{card.copy}</p></article>)}</div></section>;
+  return <section className="identity-section" id="identity"><div className="identity-panel"><div className="section-title stacked"><p className="eyebrow"><ShieldCheck size={14} /> Why Tatum</p><h2>Tatum powers the identity layer.</h2><p>Tatum's Sui RPC gateway handles every on-chain interaction — from balance checks to transaction execution — while wallet signatures replace traditional authentication entirely.</p></div><div className="tatum-badge" aria-label="Tatum logo"><div className="tatum-logo-shell"><img src={tatumLogo} alt="Tatum" /></div><strong>Tatum</strong><small>Sui RPC Gateway</small></div></div><div className="identity-grid">{identityCards.map((card) => <article className="identity-card" key={card.title}><div className="identity-icon">{card.icon}</div><h3>{card.title}</h3><p>{card.copy}</p></article>)}</div></section>;
 }
 
 function FeaturesSection() {
-  return <section className="marketing-section" id="features"><div className="section-title stacked"><p className="eyebrow"><Layers size={14} /> Features</p><h2>A vault built for people who want their files to follow their wallet, not a platform login.</h2></div><div className="feature-grid"><article className="mini-card"><Upload size={22} /><h3>Real uploads</h3><p>Files are sent to the backend and stored through the configured Walrus testnet publisher endpoint.</p></article><article className="mini-card"><Cloud size={22} /><h3>Persistent history</h3><p>Upload metadata, blob IDs, wallet owners, and stats are written to a database.</p></article><article className="mini-card"><Wallet size={22} /><h3>Wallet-scoped access</h3><p>History is returned only after signature verification for the requesting wallet.</p></article></div></section>;
+  return <section className="marketing-section" id="features"><div className="section-title stacked"><p className="eyebrow"><Layers size={14} /> Features</p><h2>Not just another file uploader. A full decentralized storage platform.</h2></div><div className="feature-grid"><article className="mini-card"><Upload size={22} /><h3>Batch Upload Pipeline</h3><p>Upload multiple files at once with real-time progress tracking. Each file goes through signing, payment, and Walrus storage — all visible in the UI.</p></article><article className="mini-card"><Cloud size={22} /><h3>Certified Blob Storage</h3><p>Every file gets a real Walrus blob ID, certified on the Sui blockchain. View any blob on walruscan.com for permanent on-chain proof of storage.</p></article><article className="mini-card"><Wallet size={22} /><h3>On-Chain Cost Proof</h3><p>Live dashboard compares your Walrus storage costs against AWS, Google Cloud, and Azure — showing the real savings of decentralized infrastructure.</p></article></div></section>;
 }
 
 function HowItWorks() {
   const steps = [
-    { title: 'Choose installed wallet', copy: 'Pick the wallet that becomes your vault key and ownership identity.' },
-    { title: 'Sign ownership proof', copy: 'Approve one message so Agile Vault knows the connected address is really yours.' },
-    { title: 'Upload file', copy: 'Drop in any document, image, video, or archive you want to lock into your vault.' },
-    { title: 'Store on Walrus', copy: 'Your file is sent to decentralized blob storage and returned with a real blob ID.' },
-    { title: 'Persist wallet history', copy: 'Every upload is saved to your private timeline, scoped only to your wallet.' },
+    { title: 'Connect your Sui wallet', copy: 'Choose from OKX, Phantom, Sui Wallet, Backpack, MetaMask, and more. Your wallet address becomes your vault identity.' },
+    { title: 'Sign to prove ownership', copy: 'A single cryptographic signature replaces passwords and logins. Tatum RPC verifies your identity server-side.' },
+    { title: 'Pay the storage fee on-chain', copy: '0.01 SUI per file is deducted through a real blockchain transaction — executed via Tatum\'s sui_executeTransactionBlock.' },
+    { title: 'File goes to Walrus', copy: 'Your file is published to Walrus testnet and receives a certified blob ID — permanent, verifiable, decentralized storage.' },
+    { title: 'Get your certificate', copy: 'Download a shareable Certificate of Storage for every file. Proof that your data lives on-chain, not on a server.' },
   ];
-  return <section className="marketing-section how-section" id="how-it-works"><div className="section-title stacked"><p className="eyebrow"><ShieldCheck size={14} /> How it works</p><h2>Identity by wallet. Storage by Walrus.</h2></div><div className="steps">{steps.map((step, index) => <div className="step" key={step.title}><span>{index + 1}</span><strong>{step.title}</strong><p>{step.copy}</p></div>)}</div></section>;
+  return <section className="marketing-section how-section" id="how-it-works"><div className="section-title stacked"><p className="eyebrow"><ShieldCheck size={14} /> How it works</p><h2>Five steps. Wallet to blob. No middlemen.</h2></div><div className="steps">{steps.map((step, index) => <div className="step" key={step.title}><span>{index + 1}</span><strong>{step.title}</strong><p>{step.copy}</p></div>)}</div></section>;
 }
 
 function TrustSection() {
-  return <section className="trust-section"><div className="section-title stacked"><p className="eyebrow"><Layers size={14} /> Infrastructure</p><h2>Built on Trusted Testnet Infrastructure</h2></div><div className="trust-grid"><article className="trust-card"><div className="trust-card-topline"><Fingerprint size={20} /><span>Tatum Role</span></div><h3>Testnet blockchain access</h3><p>Tatum API keys and optional Sui RPC configuration are loaded from environment variables, never hardcoded.</p></article><article className="trust-card"><div className="trust-card-topline"><Database size={20} /><span>Walrus Role</span></div><h3>Decentralized blob storage</h3><p>The backend uses the official Walrus HTTP publisher pattern and stores the returned real blob IDs.</p></article></div></section>;
+  return <section className="trust-section"><div className="section-title stacked"><p className="eyebrow"><Layers size={14} /> Infrastructure</p><h2>Two protocols. One vault. Fully decentralized.</h2></div><div className="trust-grid"><article className="trust-card"><div className="trust-card-topline"><Fingerprint size={20} /><span>Tatum</span></div><h3>Sui RPC Gateway</h3><p>Every blockchain call goes through Tatum — wallet balance checks (suix_getBalance), object queries (suix_getOwnedObjects), and on-chain fee payments (sui_executeTransactionBlock). API keys loaded from environment, never exposed to the client.</p></article><article className="trust-card"><div className="trust-card-topline"><Database size={20} /><span>Walrus</span></div><h3>Decentralized Blob Storage</h3><p>Files are stored via Walrus publisher API and retrieved through the aggregator endpoint. Each blob receives a certified ID on the Sui blockchain, linked to walruscan.com for public verification. 3 retries with exponential backoff for reliability.</p></article></div></section>;
 }
 
 function Footer() {
-  return <footer className="footer"><strong>Agile Vault</strong><span>Testnet wallet-powered storage using Tatum infrastructure and Walrus storage</span></footer>;
+  return <footer className="footer"><strong>Agile Vault</strong><span>Store on Walrus • Verify with Tatum • Own with Sui — Built for the Tatum × Walrus Hackathon</span></footer>;
 }
 
 function Root() {
